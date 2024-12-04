@@ -1,0 +1,5 @@
+-r "../../../libs/storage/toki_storage/requirements.txt"
+google-auth == 2.16.0
+google-api-python-client == 2.65.0
+pandas == 1.5.1
+google-cloud == 0.34.0

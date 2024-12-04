@@ -1,0 +1,2 @@
+--find-links "../../libs/dist"
+toki-storage
