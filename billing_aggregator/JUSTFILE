@@ -1,0 +1,71 @@
+# Add sh to your path as described here https://github.com/casey/just/blob/master/README.md#prerequisites
+# The sh shell is probably a much easier solution compatibility-wise
+set windows-shell := ["sh.exe", "-c"]
+VENV := justfile_directory() + if os() == "windows" {'/venv/Scripts'} else {'/venv/bin'}
+SOURCE := './src'
+PYTHON := if os() == "windows" { "python" } else { "python3" }
+EXPECTED_PYTHON_VERSION := "3.10"
+CURRENT_PYTHON_VERSION := if os() == "windows" { `python --version` } else { `python3 --version` }
+PYTHON_VALIDATION_REGEX := EXPECTED_PYTHON_VERSION + '.+'
+IS_CORRECT_PYTHON_VERSION := if CURRENT_PYTHON_VERSION =~ PYTHON_VALIDATION_REGEX {"true"} else {"false"}
+FUNCTION_NAME := file_stem(justfile_directory())
+
+@default:
+  just --list
+
+@_check_python_version:
+  echo {{ if IS_CORRECT_PYTHON_VERSION == "true" { "Initializing.." } else { "Incorrect Python version " + CURRENT_PYTHON_VERSION + "! Expected: " + EXPECTED_PYTHON_VERSION } }}
+  echo {{ if IS_CORRECT_PYTHON_VERSION == "true" {""} else {error("")} }}
+
+@init: _check_python_version
+  just install
+
+initenv:
+  @echo 'Creating virtual environment!'
+  @{{PYTHON}} -m venv venv
+
+install: initenv
+  "{{VENV}}/pip" install -r "{{SOURCE}}/requirements-dev.txt"
+
+@flake8:
+  cd "{{SOURCE}}" && "{{VENV}}/flake8" .
+  echo "flake8: OK ✅"
+
+@mypy:
+  cd "{{SOURCE}}" && "{{VENV}}/mypy" .
+  echo "mypy: OK ✅"
+
+@test:
+  "{{VENV}}/pytest" "{{SOURCE}}"
+  echo "tests: OK ✅"
+
+@lint:
+  just flake8
+  just mypy
+
+@clean:
+  echo "Removing virtual environment..."
+  rm -rf ./venv
+  echo "Removing build folder..."
+  rm -rf ./build
+  echo "Environment cleaned ✅"
+
+@serve:
+  cd "{{SOURCE}}" && OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES "{{VENV}}/functions-framework" --target=billing_aggregator --debug
+
+@build:
+  mkdir -p build
+  cd "{{SOURCE}}" && zip -r "{{justfile_directory()}}/build/{{FUNCTION_NAME}}.zip" . -i \*.py requirements.txt ./env/.* -x ./tests/* 
+
+@_terraform_setup ENVIRONMENT:
+  cd tf && terraform init -input=false
+  cd tf && terraform workspace new {{ENVIRONMENT}} || true
+  cd tf && terraform workspace select {{ENVIRONMENT}}
+
+@plan ENVIRONMENT="toki-data-platform-dev":
+  just _terraform_setup {{ENVIRONMENT}}
+  cd tf && terraform plan
+
+@deploy ENVIRONMENT="toki-data-platform-dev":
+  just _terraform_setup {{ENVIRONMENT}}
+  cd tf && terraform apply -auto-approve
