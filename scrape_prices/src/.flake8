@@ -1,0 +1,12 @@
+[flake8]
+
+jobs = 4
+max-line-length = 120
+exclude = venv
+max-complexity = 10
+max-function-length = 120
+max-returns-amount = 5
+application-import-names = main
+import-order-style = google
+ignore = I101, W503, S311
+inline-quotes = double
